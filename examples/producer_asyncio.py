@@ -29,7 +29,8 @@ import concurrent.futures
 import logging
 import time
 
-def delivery_callback (err, msg):
+
+def delivery_callback(err, msg):
     '''Optional per-message delivery callback (triggered by poll() or flush())
        when a message has been successfully delivered or permanently
        failed delivery (after retries).
@@ -40,7 +41,8 @@ def delivery_callback (err, msg):
         log.error('%% Message failed delivery: %s\n' % err)
     else:
         log.info('%% Message delivered to %s [%d]\n' % (msg.topic(), msg.partition()))
-        
+
+
 def create_producer(broker, topic):
     log = logging.getLogger('create_producer')
     # Producer configuration
@@ -51,29 +53,32 @@ def create_producer(broker, topic):
     p = Producer(**conf)
 
     log.info("created producer {}".format(p))
-    
+
     # return the producer
     return p
+
 
 def produce(p, line):
     log = logging.getLogger('produce_task')
     try:
         # Produce line (without newline)
         p.produce(topic, line.rstrip(), callback=delivery_callback)
-            
+
     except BufferError as e:
-            log.error('%% Local producer queue is full ' \
+            log.error('%% Local producer queue is full '
                       '(%d messages awaiting delivery): try again\n' %
                       len(p))
-    
+
     # Serve delivery callback queue.
     # NOTE: Since produce() is an asynchronous API this poll() call
     #       will most likely not serve the delivery callback for the
     #       last produce()d message.
     p.poll(0)
-    
+
+
 def producer_flush(p):
     p.flush()
+
 
 async def run_producer_tasks(executor, broker, topic):
     log = logging.getLogger('run_producer_tasks')
@@ -81,21 +86,21 @@ async def run_producer_tasks(executor, broker, topic):
 
     log.info('creating executor tasks')
     loop = asyncio.get_event_loop()
-    task =  loop.run_in_executor(executor, create_producer, broker, topic)
+    task = loop.run_in_executor(executor, create_producer, broker, topic)
     log.info('waiting for creatign producer')
     completed, pending = await asyncio.wait([task])
     p = [f.result() for f in completed][0]
 
     for line in ('line 1', 'line 2', 'line 3'):
-        task =  loop.run_in_executor(executor, produce, p, line)
+        task = loop.run_in_executor(executor, produce, p, line)
         log.info('produce msg: ({})'.format(line))
         completed, pending = await asyncio.wait([task])
         log.info('produced msg: ({})'.format(line))
-        
+
     # Wait until all messages have been delivered
     log.info('%% Waiting for %d deliveries\n' % len(p))
     task = loop.run_in_executor(executor, producer_flush, p)
-    completed, pending = await asyncio.wait([task])    
+    completed, pending = await asyncio.wait([task])
     log.info("producer flushed")
 
 if __name__ == '__main__':
@@ -103,10 +108,8 @@ if __name__ == '__main__':
         sys.stderr.write('Usage: %s <bootstrap-brokers> <topic>\n' % sys.argv[0])
         sys.exit(1)
 
-
-
     broker = sys.argv[1]
-    topic  = sys.argv[2]
+    topic = sys.argv[2]
 
     # Configure logging to show the name of the thread
     # where the log message originates.
@@ -129,6 +132,4 @@ if __name__ == '__main__':
     finally:
         event_loop.close()
 
-    sys.exit()
-
-
+    sys.exit(0)
